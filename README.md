@@ -9,4 +9,4 @@ In the files "Redshift" and "Superset-SQL", you will find code related to the fo
 
 In the file 'Rmarkdown', you will find a rudimentary Logistic Regression on the likelihood of a user returning the very next day. 
 
-
+1.) For ease of replication, copy and paste it into an empty Rmarkdown file & change the file path to match your local machine. 
