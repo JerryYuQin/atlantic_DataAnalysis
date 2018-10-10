@@ -1,7 +1,7 @@
 # Atlantic_DataAnalysis
 This file includes queries and rudimentary modeling in R for a sample Atlantic Dataset
 
-In the document "Redshift & SQL", you will find code related 
+In the files "Redshift" and "Superset-SQL", you will find code related to the following
 
 1.) ingesting, cleaning, and formatting of data 
 
