@@ -1,0 +1,112 @@
+--Let's Explore/ Plot out what the data looks like
+--1.) Do we observe weekly/monthly seasonality to User_visits?
+--ANS: We observe peaks weekly (Mon & Tues), then steady decline until weekly low on Saturday!
+select count(DISTINCT visitor_id) as user_count
+     , visit_date
+from "jerry.qin".atlantic GROUP by 2;
+
+--DO we observe hourly difference to User_visits? 
+--ANS: There only data from 8AM to 7PM, and they are oddly very even. No difference across HOD
+select count(DISTINCT visitor_id) as user_count
+     , visit_hr
+from "jerry.qin".atlantic GROUP by 2;
+
+--2.) Do we observe a trend in article publish date OR hour? 
+--ANS: Most articles seems to be published after 03/01/2018
+select count(DISTINCT url) as article_count
+     , pub_date
+from "jerry.qin".atlantic GROUP by 2;
+
+--ANS: Most Articles seem to be publish in two timeblocks (9-11AM) + (2-4pm)
+select count(DISTINCT url) as article_count
+     , pub_hr
+from "jerry.qin".atlantic GROUP by 2;
+
+--Do articles perform differently based on publish hour?
+--ANS: Articles published before 9AM & after 4PM (and during noon-1pm) do not receive much attention, small hike 9-10AM, and major boost at 1PM & 3PM
+select count(*) as view_count
+     , pub_hr
+from "jerry.qin".atlantic GROUP by 2;
+
+--What about article publishing by day of week? 
+select count(DISTINCT url) as article_count
+     , extract('dow' from pub_date::TIMESTAMP) as dow
+from "jerry.qin".atlantic GROUP by 2;
+
+--What about articles performace and day of week publishing?
+select count(*) as view_count
+     , extract('dow' from pub_date::TIMESTAMP) as dow
+from "jerry.qin".atlantic GROUP by 2;
+
+--3.) Build DAU/WAU for this data: Not monthly, because we observe a weekly seasonality 
+--ANS: On any given day between 15-20% of weekly user come back to the site; same pattern of peaking Mon + Tues then valley on Saturday
+with dau as (
+      select visit_date as full_date
+        , count(distinct visitor_id) as dau
+      from "jerry.qin".atlantic as gav
+      where 1=1
+      group by full_date
+     )
+select full_date,
+       dau/(select count(distinct visitor_id)
+        from "jerry.qin".atlantic as gav2
+        where 1=1
+              and gav2.visit_date >= dateadd(day, -6, dau.full_date::DATE)
+              and gav2.visit_date <= dau.full_date
+       )::FLOAT as dau_over_wau
+from dau
+where full_date > '2018-03-05' --Give a week for users to get DATA
+order by full_date desc;
+
+--4.) PLOT the power user curve; what is the distribution of users Visit Frequency?
+--ANS: ~90% of users only visited once in the entire month
+select visitor_id
+    ,  count(DISTINCT visit_date::DATE) as days_visited
+    --,  date_trunc('week', visit_date::DATE) as week
+from "jerry.qin".atlantic
+group by 1;
+
+--5.) DO certin site_section get more popular during time of Day?? :: we see no difference by hour
+select count(*) as count_views
+    , visit_hr
+    , site_section
+from "jerry.qin".atlantic
+group by 2,3 order by 2;
+
+--By day of week? 
+--ANS: Some sections follow the general weekly trend, but a few subtlty stand out 
+select count(*) as count_views
+    , extract('dow' from visit_date::TIMESTAMP) as dow
+    , site_section
+from "jerry.qin".atlantic
+group by 2,3 order by 2;
+
+--6.)Let's look at if the Cond. Probablity of coming back the next day.
+--How does it differ by site_section?
+select site_section, visit_date
+    , sum(did_visit_next)/(sum(did_visit_next) + sum(did_not_visit_next))::FLOAT as prob_return_next_day
+from "jerry.qin".atlantic_visit
+where visit_date < '2018-03-29'
+GROUP by 1,2 ORDER by 1,2;
+
+--How does it differ by visit hour??
+--ANS: NO it does not! Each hour follows the same overall trend of more likely to come back on weekday than weekend
+select visit_hr, visit_date
+    , sum(did_visit_next)/(sum(did_visit_next) + sum(did_not_visit_next))::FLOAT as prob_return_next_day
+from "jerry.qin".atlantic_visit
+where visit_date < '2018-03-29'
+
+--How does it differ by publishing hour??
+--ANS:
+select pub_hr, visit_date
+    , sum(did_visit_next)/(sum(did_visit_next) + sum(did_not_visit_next))::FLOAT as prob_return_next_day
+from "jerry.qin".atlantic_visit
+where visit_date < '2018-03-29' 
+GROUP by 1,2 ORDER by 1,2;
+
+--General Return Rate over 
+select visit_date
+    , sum(did_visit_next)/(sum(did_visit_next) + sum(did_not_visit_next))::FLOAT as prob_return_next_day
+from "jerry.qin".atlantic_visit
+where visit_date < '2018-03-29' 
+GROUP by 1 ORDER by 1,2;
