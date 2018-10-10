@@ -1,0 +1,115 @@
+---
+title: "Atlantic Visit Return % Model"
+author: "Jerry Yu Qin"
+date: "8th Oct 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(ggExtra)
+library(readr)
+library(arm)
+#bring in Dataset 
+read <-read_tsv("/Users/jerry.qin/Downloads/read.tsv")
+
+# Subsetting the data
+#skim <- subset(skim,select=c(2,3,4,5,6))
+read$did_return <-as.factor(read$did_return)
+read$dow <-as.factor(read$dow)
+read$time_of_pub <-as.factor(read$time_of_pub)
+
+#function declaration 
+logit2prob <- function(logit){
+  odds <- exp(logit)
+  prob <- odds / (1 + odds)
+  return(prob)
+}
+```
+
+## Question to Address: 
+**************************************************************************************
+* We want to answer the question __"What are existing behavioral and article attributes that are strong predictors of a user coming back the next day?"__
+
+* To answer our question of interest, we will first conduct model selection to find a good model for predicting churn that is derived from our large set of predictors. 
+
+```{r}
+# Train test splitting
+train <- read[1:400000,]
+test <- read[400001:500000,]
+
+# Model fitting
+model <- glm(did_return ~ . ,family="binomial", data=train)
+summary(model)
+
+# Analysis of deviance
+anova(model,test="Chisq")
+
+fitted.results <- predict(model,test,type='response')
+fitted.results <- ifelse(fitted.results > 0.5,1,0)
+misClasificError <- mean(fitted.results != test$did_return)
+print(paste('Accuracy',1-misClasificError))
+# "Accuracy 0.635" --> 64% ,which is slightly better than 50/50 chance
+#library(caret)
+#confusionMatrix(data=fitted.results, reference=test$conver_to_paid)
+```
+************************************************************************************
+**1.5 Comparing with Combined Stepwise Selection**  
+__*Interpreting Stepwise Selection*__   
+
+
+```{r}
+#Now, let's compare the result of our manual fitting to a model selection 
+#Stepwise Selection
+mod.none <- glm(did_return~1, family="binomial", data=train)
+glm3 = glm(did_return ~ .,family = binomial(link = "logit"), data = train)
+#Combined stepwise selection
+n <- dim(train)[1]
+combined <- step(mod.none,scope=list(upper=glm3), k=log(n))
+```
+************************************************************************************
+**1.5B Comparing Model with Null Model**  
+__*Interpreting the Difference*__   
+The chisq test shows significant difference in deviance between our model and null model.  
+```{r,echo=FALSE}
+#Do the model vs No model (Test: is model better than no model?) YES
+G.o <- glm3$null - glm3$deviance
+pchisq(q=G.o, df = 2,lower.tail = FALSE)
+# [1] 0, so yes it is 
+```
+************************************************************************************
+**Average Predicative difference in probability of triggering maintainence, comparing scooters that are high vs. low milage**
+Controlling for the day of the week one visits, a user who reads a morning published article is 10% more likely to return the next day than if he had read an afternoon published article.
+************************************************************************************
+
+```{r}
+#what are reasonable values of the predictors???
+mod.best <- glm(did_return ~ time_of_pub + dow, family="binomial", data=train)
+#Create new dataset
+morning <- data.frame(time_of_pub ='morning', dow= 'Weekday')
+afternoon <- data.frame(time_of_pub ='afternoon', dow= 'Weekday')
+#Get point estimate and se for logit
+morning_est <-predict.glm(mod.best,morning,type="link", se.fit = TRUE)
+afternoon_est <-predict.glm(mod.best,afternoon,type="link", se.fit = TRUE)
+diff <- (invlogit(morning_est $fit) - invlogit(afternoon_est$fit))
+diff #difference in probability
+
+```
+************************************************************************************
+**Average Predicative difference in probability next day return, comparing day of week in which a user visits**
+Controlling for the time of the publishing of the article being equal, a user visits on the weekday is 13% more likely to return the next day than someone who visits during the weekend.
+************************************************************************************
+
+```{r}
+#Create new dataset
+weekday <- data.frame(time_of_pub ='morning', dow= 'Weekday')
+weekend <- data.frame(time_of_pub ='morning', dow= 'Weekend')
+#Get point estimate and se for logit
+weekday_est <-predict.glm(mod.best,weekday,type="link", se.fit = TRUE)
+weekend_est <-predict.glm(mod.best,weekend,type="link", se.fit = TRUE)
+diff <- (invlogit(weekday_est$fit) - invlogit(weekend_est$fit))
+diff #difference in probability
+```
