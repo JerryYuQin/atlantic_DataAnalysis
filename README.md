@@ -6,3 +6,7 @@ In the files "Redshift" and "Superset-SQL", you will find code related to the fo
 1.) ingesting, cleaning, and formatting of data 
 
 2.) All Exploratory plots + query in Superset, where I attempt to plot everything out and see what the data looks like . 
+
+In the file 'Rmarkdown', you will find a rudimentary Logistic Regression on the likelihood of a user returning the very next day. 
+
+
