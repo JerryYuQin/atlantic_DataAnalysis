@@ -1,0 +1,57 @@
+
+----------------------------------------------------
+--The ATLANTIC ----Create Temp tables & COPY commands
+-----------------------------------------------------
+create table "jerry.qin".atlantic
+  (visitor_id varchar(65535), visit_date varchar(65535), visit_hr BIGINT,
+   url varchar(65535), site_section varchar (65535), pub_date varchar(65535),
+   pub_hr BIGINT);
+
+copy "jerry.qin".atlantic
+from 's3://redshift-staging/Jerry/atlantic.tsv'
+iam_role 'arn:aws:iam::636256167974:role/craftsy-redshift-copy'
+DELIMITER '\t'
+ignoreheader 1
+;
+
+--UPDATES to Varchar to Timestamp
+UPDATE "jerry.qin".atlantic SET visit_date = visit_date::timestamp;
+UPDATE "jerry.qin".atlantic SET pub_date = pub_date::timestamp;
+
+--Update Site_section; Take the 80/20 approach; top 80% specific, else is "Other"
+UPDATE "jerry.qin".atlantic SET site_section = case when site_section ='/politics/' then 'POLITICS'
+                                                    when site_section ='/entertainment/' then 'ENTERTAINMENT'
+                                                    when site_section ='/magazine/' then 'MAGAZINE'
+                                                    when site_section ='/international/' then 'INTERNATIONAL'
+                                                    when site_section ='/technology/' then 'TECH'
+                                                    when site_section ='/business/' then 'BUSINESS'
+                                                    when site_section ='/health/' then 'HEALTH'
+                                                    when site_section ='/photo/' then 'PHOTO'
+                                                    when site_section ='/science/' then 'SCIENCE'
+                                                    when site_section ='/pubs/' then 'PUBS'
+                                                    ELSE 'OTHER' END ;
+
+-----Create Temp Table: For Cond. Probability
+create table "jerry.qin".atlantic_visit as
+select at1.visitor_id
+    ,  at1.visit_date
+    ,  at1.visit_hr
+    ,  at1.url
+    ,  at1.site_section
+    ,  at1.pub_date
+    ,  at1.pub_hr
+    , case when at2.visit_date is not null then 1 else null end as did_visit_next
+    , case when at2.visit_date is null then 1 else null end as did_not_visit_next
+from "jerry.qin".atlantic at1
+left join "jerry.qin".atlantic at2 on at2.visitor_id = at1.visitor_id
+                            and at2.visit_date::DATE = at1.visit_date::DATE + interval '1 day'
+;
+--select statement for R
+select case when extract('dow' from visit_date::timestamp) > 4 OR
+                 extract('dow' from visit_date::timestamp) = 0 then 'Weekend' else 'Weekday' end as DOW
+    ,  case when pub_hr >= 12 then 'morning' else 'afternoon' end as time_of_pub
+    ,  case when did_visit_next is not null then 1 else 0 end as did_return
+from "jerry.qin".atlantic_visit
+where visit_date < '2018-03-29'
+limit 500000
+;
